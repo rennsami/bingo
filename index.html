@@ -34,7 +34,7 @@
 
         .container {
             max-width: 1200px;
-            margin: 0 auto;
+            margin:  auto;
             padding: 20px;
         }
 
@@ -196,6 +196,11 @@
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
         }
 
+        .player-tag.host {
+            background-color: var(--apple-blue);
+            color: white;
+        }
+
         /* Game ID display */
         .game-id {
             font-size: 24px;
@@ -232,6 +237,14 @@
             background-color: var(--apple-input-bg);
             border: none;
             color: white;
+        }
+
+        /* Status message */
+        .status-message {
+            padding: 15px;
+            background-color: var(--apple-input-bg);
+            border-radius: 12px;
+            margin-bottom: 20px;
         }
 
         /* Responsive */
@@ -311,7 +324,7 @@
             </div>
 
             <div id="player-view" class="hidden">
-                <p>Warte auf den Host, um mit dem Sammeln von Begriffen zu beginnen...</p>
+                <div class="status-message" id="player-status">Warte auf den Host, um mit dem Sammeln von Begriffen zu beginnen...</div>
                 <h3>Spieler:</h3>
                 <div id="players-list-player" class="player-list"></div>
             </div>
@@ -335,7 +348,7 @@
             
             <div id="player-add-words-view" class="hidden">
                 <button id="submit-player-words-btn" class="btn">Begriffe einreichen</button>
-                <p>Warte auf andere Spieler...</p>
+                <div class="status-message" id="player-add-words-status">Füge Begriffe hinzu und klicke auf "Begriffe einreichen"</div>
             </div>
         </div>
 
@@ -368,7 +381,10 @@
             allWords: [],
             myWords: [],
             jokerCount: 0,
-            wordsSubmitted: 0
+            wordsSubmitted: 0,
+            gameStarted: false,
+            // Simulated "server" state for demo purposes
+            simulatedGames: {}
         };
 
         // DOM elements
@@ -412,14 +428,58 @@
         document.getElementById('joker-increase').addEventListener('click', () => {
             gameState.jokerCount++;
             updateJokerDisplay();
+            updateSimulatedGame();
         });
         
         document.getElementById('joker-decrease').addEventListener('click', () => {
             if (gameState.jokerCount > 0) {
                 gameState.jokerCount--;
                 updateJokerDisplay();
+                updateSimulatedGame();
             }
         });
+
+        // Simulated game "server" functions
+        function createSimulatedGame() {
+            gameState.simulatedGames[gameState.gameId] = {
+                host: gameState.playerName,
+                players: [gameState.playerName],
+                allWords: [],
+                jokerCount: 0,
+                gameStarted: false,
+                addingWords: false
+            };
+        }
+
+        function updateSimulatedGame() {
+            if (gameState.isHost && gameState.simulatedGames[gameState.gameId]) {
+                gameState.simulatedGames[gameState.gameId].players = gameState.players;
+                gameState.simulatedGames[gameState.gameId].jokerCount = gameState.jokerCount;
+                gameState.simulatedGames[gameState.gameId].allWords = gameState.allWords;
+                gameState.simulatedGames[gameState.gameId].gameStarted = gameState.gameStarted;
+                gameState.simulatedGames[gameState.gameId].addingWords = gameState.addingWords;
+            }
+        }
+
+        function checkSimulatedGame() {
+            if (!gameState.isHost && gameState.simulatedGames[gameState.gameId]) {
+                // Update players list
+                gameState.players = gameState.simulatedGames[gameState.gameId].players;
+                updatePlayersList();
+                
+                // Update game state
+                if (gameState.simulatedGames[gameState.gameId].addingWords && !gameState.addingWords) {
+                    gameState.addingWords = true;
+                    startAddingWords();
+                }
+                
+                if (gameState.simulatedGames[gameState.gameId].gameStarted && !gameState.gameStarted) {
+                    gameState.gameStarted = true;
+                    gameState.allWords = gameState.simulatedGames[gameState.gameId].allWords;
+                    startGame();
+                }
+            }
+        }
 
         // Generate a random game ID
         function generateGameId() {
@@ -444,11 +504,21 @@
             gameState.playerName = hostName;
             gameState.players = [hostName];
             gameState.jokerCount = 0;
+            gameState.gameStarted = false;
+            gameState.addingWords = false;
 
             document.getElementById('display-game-id').textContent = gameState.gameId;
             updatePlayersList();
             updateJokerDisplay();
+            
+            // Create simulated game
+            createSimulatedGame();
+            updateSimulatedGame();
+            
             showScreen('lobby');
+            
+            // Start checking for updates
+            setInterval(checkSimulatedGame, 1000);
         }
 
         // Join an existing game
@@ -469,34 +539,61 @@
             gameState.gameId = gameId;
             gameState.isHost = false;
             gameState.playerName = playerName;
+            gameState.gameStarted = false;
+            gameState.addingWords = false;
 
             // In a real app, you would connect to a server here
             // For this demo, we'll simulate joining
             document.getElementById('display-game-id').textContent = gameState.gameId;
             
-            // Simulate adding the player to the game
-            setTimeout(() => {
-                gameState.players.push(playerName);
-                updatePlayersList();
-                showScreen('lobby');
-                
-                // Show player view
-                hostViews.lobby.classList.add('hidden');
-                playerViews.lobby.classList.remove('hidden');
-            }, 500);
+            // Check if simulated game exists
+            if (!gameState.simulatedGames[gameState.gameId]) {
+                // Create a new simulated game if it doesn't exist (for demo purposes)
+                gameState.simulatedGames[gameState.gameId] = {
+                    host: "Demo-Host",
+                    players: ["Demo-Host", playerName],
+                    allWords: [],
+                    jokerCount: 2,
+                    gameStarted: false,
+                    addingWords: false
+                };
+            }
+            
+            // Add player to simulated game
+            if (!gameState.simulatedGames[gameState.gameId].players.includes(playerName)) {
+                gameState.simulatedGames[gameState.gameId].players.push(playerName);
+            }
+            
+            // Update local state
+            gameState.players = gameState.simulatedGames[gameState.gameId].players;
+            gameState.jokerCount = gameState.simulatedGames[gameState.gameId].jokerCount;
+            
+            updatePlayersList();
+            showScreen('lobby');
+            
+            // Show player view
+            hostViews.lobby.classList.add('hidden');
+            playerViews.lobby.classList.remove('hidden');
+            
+            // Start checking for updates
+            setInterval(checkSimulatedGame, 1000);
         }
 
         // Start adding words phase
         function startAddingWords() {
+            gameState.addingWords = true;
+            updateSimulatedGame();
             showScreen('addWords');
             
             // Show appropriate view based on host/player
             if (gameState.isHost) {
                 hostViews.addWords.classList.remove('hidden');
                 playerViews.addWords.classList.add('hidden');
+                document.getElementById('player-status').textContent = "Begriffe werden gesammelt...";
             } else {
                 hostViews.addWords.classList.add('hidden');
                 playerViews.addWords.classList.remove('hidden');
+                document.getElementById('player-add-words-status').textContent = "Füge Begriffe hinzu und klicke auf 'Begriffe einreichen'";
             }
         }
 
@@ -510,10 +607,14 @@
 
             const words = wordsText.split('\n').filter(word => word.trim() !== '');
             
-            // In a real app, you would send these to the server
-            // For this demo, we'll just add them locally
+            // Add words to game
             gameState.allWords = gameState.allWords.concat(words);
             gameState.wordsSubmitted++;
+            
+            // Update simulated game
+            if (gameState.isHost) {
+                gameState.simulatedGames[gameState.gameId].allWords = gameState.allWords;
+            }
             
             document.getElementById('words-count').textContent = 
                 `${gameState.allWords.length} Begriffe gesammelt (von ${gameState.players.length} Spielern)`;
@@ -523,7 +624,7 @@
             
             // For players, show waiting message after submission
             if (!gameState.isHost) {
-                document.querySelector('#player-add-words-view p').textContent = 
+                document.getElementById('player-add-words-status').textContent = 
                     'Deine Begriffe wurden eingereicht. Warte auf andere Spieler...';
                 document.getElementById('submit-player-words-btn').classList.add('hidden');
             }
@@ -536,8 +637,8 @@
                 return;
             }
 
-            // Shuffle all words
-            gameState.allWords = shuffleArray(gameState.allWords);
+            gameState.gameStarted = true;
+            updateSimulatedGame();
             
             // Generate individual bingo cards
             generateBingoCard();
@@ -609,6 +710,10 @@
                 const playerTag = document.createElement('div');
                 playerTag.className = 'player-tag';
                 playerTag.textContent = player;
+                
+                if (gameState.isHost && player === gameState.playerName) {
+                    playerTag.classList.add('host');
+                }
                 
                 playersList.appendChild(playerTag.cloneNode(true));
                 playersListPlayer.appendChild(playerTag);
